@@ -125,6 +125,29 @@ def init_db():
             user_admin TEXT DEFAULT 'no'
             )
     ''')
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS schedule(
+            user_id INTEGER PRIMARY KEY,
+            monday TEXT DEFAULT '',
+            tuesday TEXT DEFAULT '',
+            wednesday TEXT DEFAULT '',
+            thursday TEXT DEFAULT '',
+            friday TEXT DEFAULT '',
+            saturday TEXT DEFAULT '',
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+    ''')
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS info(
+            user_id INTEGER PRIMARY KEY,
+            today_weekday_counter INTEGER DEFAULT 0,
+            next_week TEXT DEFAULT 'False',
+            delete_message_id INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+    ''')
     conn.commit()
     conn.close()
 init_db()
@@ -145,7 +168,6 @@ delete_message_id = None    # id сообщения которое надо уд
 @bot.message_handler(commands=['start','help'])
 def start_handler(message):
     global today_weekday_counter
-    global delete_message_id
 
     user_id = message.from_user.id
     nickname = message.from_user.username
@@ -158,11 +180,13 @@ def start_handler(message):
             text = f"👋 Привет!\n\n📊 Твоя группа: {group_name}\n\nВыбери действие ниже: 👇"
 
             # Удаление сообщения
+            delete_message_id = get_delete_message_id(user_id)
             if delete_message_id != None:
                 bot.delete_messages(message.chat.id, [delete_message_id, delete_message_id - 1])
             
             sent_message = bot.send_message(message.chat.id, text, reply_markup=kb)
             delete_message_id = sent_message.message_id
+            add_delete_message_id(user_id, delete_message_id)
         else:
             text = '🎓 Добро пожаловать в бот расписания КазГАУ!\n\n📌 Для начала работы укажите вашу учебную группу\n\nПример: A123-45' 
             bot.send_message(message.chat.id, text)
@@ -262,6 +286,8 @@ def check_schedule(callback):
         if find_no_schedule_for_week(link):
 
             weekdays = the_site_parser(link)
+            ensure_schedule_record_exists(user_id)
+            update_all_schedule(user_id, weekdays)
 
             if not weekdays:
                 bot.send_message(callback.chat.id, "❌ Не удалось загрузить сайт\n\nПопробуйте позже")
@@ -298,6 +324,7 @@ def check_schedule(callback):
 
         if find_no_schedule_for_week(link):
             weekdays = the_site_parser(link)
+            update_all_schedule(user_id, weekdays)
 
             next_week = True
             today_weekday = 0
@@ -319,6 +346,7 @@ def check_schedule(callback):
 
         link = f"https://kazgau.ru/obrazovanie/raspisanie-zanyatij/?filter=group&item={group_name}&date={today_day}"
         weekdays = the_site_parser(link)
+        update_all_schedule(user_id, weekdays)
 
         next_week = False
         today_weekday = 0
@@ -331,9 +359,11 @@ def check_schedule(callback):
     kb = check_keyboard(show_weekday)
 
     if not weekdays[str(show_weekday)]:
+        ensure_schedule_record_exists(user_id)
         text = "📭 Пар на этот день нет\n\nМожно отдыхать! 🎉"
     else:
-        text = weekdays[str(show_weekday)]
+        ensure_schedule_record_exists(user_id)
+        text = get_true_day(show_weekday, user_id)
         
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb)
@@ -491,6 +521,51 @@ def update_user_admin(user_id):
     conn.commit()
     conn.close()
 
+def update_all_schedule(user_id, weekdays):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute('''
+            UPDATE schedule 
+            SET monday = ?, tuesday = ?, wednesday = ?, thursday = ?, friday = ?, saturday = ?
+            WHERE user_id = ?
+        ''', (
+            weekdays["0"][0] if weekdays["0"] else "Нет пар", 
+            weekdays["1"][0] if weekdays["1"] else "Нет пар", 
+            weekdays["2"][0] if weekdays["2"] else "Нет пар", 
+            weekdays["3"][0] if weekdays["3"] else "Нет пар", 
+            weekdays["4"][0] if weekdays["4"] else "Нет пар", 
+            weekdays["5"][0] if weekdays["5"] else "Нет пар", 
+            user_id
+        ))
+
+    conn.commit()
+    conn.close()
+
+def ensure_schedule_record_exists(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    cur.execute('SELECT * FROM schedule WHERE user_id = ?', (user_id,))
+    result = cur.fetchone()
+    
+    if not result:
+        cur.execute('INSERT INTO schedule (user_id) VALUES (?)', (user_id,))
+        conn.commit()
+    
+    conn.close()
+
+def add_delete_message_id(user_id, delete_message_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'INSERT OR REPLACE INTO info (user_id, delete_message_id) VALUES (?, ?)',
+        (user_id, delete_message_id)  # Убедитесь, что delete_message_id - число
+    )
+    conn.commit()
+    conn.close()
+
 # Извлечение из Базы Данных
 def get_group(user_id):
     conn = get_db_connection()
@@ -544,12 +619,58 @@ def get_all_users_from_one_group(group_name):
 
     return result
 
+def get_true_day(weekday, user_id):
+    """Получает расписание для конкретного дня недели пользователя"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Сопоставляем номер дня с названием столбца
+    day_columns = {
+        0: 'monday',
+        1: 'tuesday', 
+        2: 'wednesday',
+        3: 'thursday',
+        4: 'friday',
+        5: 'saturday'
+    }
+    
+    column_name = day_columns.get(weekday)
+    if not column_name:
+        conn.close()
+        return "❌ Неверный день недели"
+    
+    # Выполняем запрос
+    cur.execute(f'SELECT {column_name} FROM schedule WHERE user_id = ?', (user_id,))
+    result = cur.fetchone()
+    conn.close()
+    
+    if result and result[column_name] and result[column_name] != "Нет пар":
+        schedule_text = result[column_name]
+        # Если текст все еще содержит квадратные скобки (на всякий случай)
+        if schedule_text.startswith('[') and schedule_text.endswith(']'):
+            schedule_text = schedule_text[1:-1]  # Убираем квадратные скобки
+        if schedule_text.startswith("'") and schedule_text.endswith("'"):
+            schedule_text = schedule_text[1:-1]  # Убираем кавычки
+        return schedule_text
+    else:
+        return "📭 Пар на этот день нет\n\nМожно отдыхать! 🎉"
 
+def get_delete_message_id(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
 
+    cur.execute(
+        'SELECT delete_message_id FROM info WHERE user_id = ?',
+        (user_id,)
+    )
+    result = cur.fetchone()
+    conn.close()
+    if result and result['delete_message_id']:
+        return int(result['delete_message_id'])  # Преобразуем в int
+    return None  # Возвращаем None вместо пустой строки
 
 # Функция поиска группы и ее добавление в БД
 def check_and_add_user_group(user_id, group_name, message_chat_id):
-    global delete_message_id
 
     today_weekday = datetime.today().weekday()
 
@@ -580,6 +701,7 @@ def check_and_add_user_group(user_id, group_name, message_chat_id):
             text = f"✅ Отлично! Группа сохранена!\n\n• Группа: {group_name.upper()}\n• Статус: 🎉 Добавлена\n\nТеперь вы можете просматривать расписание!"
             sent_message = bot.send_message(message_chat_id, text, reply_markup=kb, parse_mode='Markdown')
             delete_message_id = sent_message.message_id
+            add_delete_message_id(user_id,delete_message_id)
         else:
             text = f'❌ Группа {group_name} не найдена.\n\nПроверьте:\n• Правильность написания\n• Формат (например: А123-45)\n• Актуальность группы\n\nПопробуйте еще раз или воспользуйтесь командой /help:'
             bot.send_message(message_chat_id, text)
