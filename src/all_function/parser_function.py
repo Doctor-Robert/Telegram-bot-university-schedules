@@ -163,6 +163,7 @@ def find_no_schedule_for_week(link):
         flag = False
     return flag
 
+#Проверка на воскресенье
 def check_sunday():
     if datetime.today().weekday() == 6:
         today_day = date.today() + timedelta(1)
@@ -171,3 +172,4 @@ def check_sunday():
         today_day = date.today()
         today_weekday = datetime.today().weekday()
     return today_day, today_weekday
+

@@ -1,6 +1,8 @@
 from all_function import parser_function, buttoms_functions, bd_functions
 from datetime import datetime, date, timedelta
 import telebot
+import threading
+import time
 
 from dotenv import load_dotenv
 import os
@@ -20,6 +22,7 @@ def start_handler(message):
     # bd_functions.add_user(user_id, nickname)
 
     if message.text == "/start":
+
         bd_functions.add_today_weekday_counter(user_id, 0)
         group_name = bd_functions.get_group_name(user_id)
 
@@ -44,12 +47,12 @@ def start_handler(message):
             bot.send_message(message.chat.id, text)
 
             bd_functions.add_user(user_id, nickname)
+            bd_functions.add_message_chat_id(user_id, message.chat.id)
             bd_functions.add_user_status(user_id, "waiting_for_group_input")
 
     elif message.text == "/help":
         text = '🆘 Центр поддержки\n\nПо вопросам модерации, сотрудничества или техническим проблемам обращайтесь к администратору: @admgrz\n\n⚠️ Если вы видите ошибку "Группа не найдена", но уверены что группа существует:\n\n1. Проверьте правильность написания группы\n2. Убедитесь что расписание опубликовано на текущую неделю\n3. Если расписания на текущую неделю нет - попробуйте добавить группу через неделю\n\nМы всегда рады помочь! 🤝'
         bot.send_message(message.chat.id, text)
-
 
 @bot.message_handler(
     func=lambda message: bd_functions.get_user_status(message.from_user.id)
@@ -95,7 +98,7 @@ def find_user_group(message):
 
         bd_functions.add_user_status(user_id, "None")
 
-@bot.callback_query_handler(func=lambda callback: callback.data in ['change_the_group', 'help'])
+@bot.callback_query_handler(func=lambda callback: callback.data in ['change_the_group', 'settings', 'daily_notification', 'weekly_schedule'])
 def change_group(callback):
     user_id = callback.from_user.id
 
@@ -112,12 +115,26 @@ def change_group(callback):
         text = '🔄 Смена группы\n\nВведите новое название группы:\n\nПример: А123-45'
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text)
 
-    # Помощь
-    elif callback.data == 'help':
-        kb = buttoms_functions.back_to_main_menu()
-        text = '🆘 Центр поддержки\n\nПо вопросам модерации, сотрудничества или техническим проблемам обращайтесь к администратору: @admgrz\n\nМы всегда рады помочь! 🤝'
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb)
+    # Настройки
+    elif callback.data in ['settings', 'daily_notification', 'weekly_schedule']:
+        if callback.data == 'daily_notification':
+            if bd_functions.get_flag_daily_notification(user_id) == 'Выключен ❌':
+                bd_functions.add_flag_daily_notification(user_id, 'Включен ✅')
+            else:
+                bd_functions.add_flag_daily_notification(user_id, 'Выключен ❌')
 
+        if callback.data == 'weekly_schedule':
+                if bd_functions.get_flag_weekly_schedule(user_id) == 'Выключен ❌':
+                    bd_functions.add_flag_weekly_schedule(user_id, 'Включен ✅')
+                else:
+                    bd_functions.add_flag_weekly_schedule(user_id, 'Выключен ❌')
+
+        flag_daily_notification = bd_functions.get_flag_daily_notification(user_id)
+        flag_weekly_schedule = bd_functions.get_flag_weekly_schedule(user_id)
+
+        kb = buttoms_functions.settings_buttom()
+        text = f'⚙️ **Настройки бота**\n\n• 🔔 Ежедневные уведомления:\n{flag_daily_notification}\n• 📅 Недельное расписание:\n{flag_weekly_schedule}\n\n❓ **Помощь и поддержка**\nПо любым вопросам обращайтесь к администратору: @admgrz'
+        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='Markdown')
 
 @bot.callback_query_handler(func=lambda callback: callback.data in ['schedule', 'forward', 'back', 'main_menu','next_week','last_week'])
 def check_schedule(callback):
@@ -214,22 +231,56 @@ def check_schedule(callback):
     if weekdays is None:
         weekdays = bd_functions.get_all_schedule(user_id)
 
-    show_weekday = bd_functions.get_today_weekday(user_id) + bd_functions.get_today_weekday_counter(user_id)
+    #Расписание по дням
+    if bd_functions.get_flag_weekly_schedule(user_id) == 'Выключен ❌':
+        show_weekday = bd_functions.get_today_weekday(user_id) + bd_functions.get_today_weekday_counter(user_id)
 
 
-    # Проверка какую клавиатуру показывать в расписании
-    kb = buttoms_functions.check_keyboard(show_weekday)
+        # Проверка какую клавиатуру показывать в расписании
+        kb = buttoms_functions.check_keyboard(show_weekday)
 
-    # ПРОВЕРЯЕМ, что weekdays не None и содержит нужный ключ
-    if weekdays is None or str(show_weekday) not in weekdays or not weekdays[str(show_weekday)]:
-        bd_functions.ensure_schedule_record_exists(user_id)
-        text = "📭 Пар на этот день нет\n\nМожно отдыхать! 🎉"
+        # ПРОВЕРЯЕМ, что weekdays не None и содержит нужный ключ
+        if weekdays is None or str(show_weekday) not in weekdays or not weekdays[str(show_weekday)]:
+            bd_functions.ensure_schedule_record_exists(user_id)
+            text = "📭 Пар на этот день нет\n\nМожно отдыхать! 🎉"
+        else:
+            bd_functions.ensure_schedule_record_exists(user_id)
+            text = bd_functions.get_true_day(show_weekday, user_id)
+    #Расписание на неделю
     else:
-        bd_functions.ensure_schedule_record_exists(user_id)
-        text = bd_functions.get_true_day(show_weekday, user_id)
+        text = "🎯 **РАСПИСАНИЕ НА НЕДЕЛЮ**\n\n"
         
+        day_names = {
+            '0': '📋 ПОНЕДЕЛЬНИК', 
+            '1': '📋 ВТОРНИК', 
+            '2': '📋 СРЕДА', 
+            '3': '📋 ЧЕТВЕРГ', 
+            '4': '📋 ПЯТНИЦА', 
+            '5': '📋 СУББОТА'
+        }
+        
+        for i, (day_num, day_name) in enumerate(day_names.items()):
+            # Добавляем разделитель между днями
+            if i > 0:
+                text += "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n\n"
+            
+            text += f"**{day_name}**\n"
+            
+            if day_num in weekdays and weekdays[day_num]:
+                day_text = str(weekdays[day_num][0]).strip("[]'")
+                # Убираем дублирующее название дня и дату из текста
+                lines = day_text.split('\n')
+                # Пропускаем первую строку (название дня и дата)
+                if lines and '⭐️' in lines[0]:
+                    lines = lines[1:]
+                day_text_clean = '\n'.join(lines)
+                text += f"{day_text_clean}\n"
+            else:
+                text += "    🎉 Выходной - пар нет!\n"
+
+        kb = buttoms_functions.back_to_main_menu()
     try:
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb)
+        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='Markdown')
     except Exception as e:
         # Если сообщение не изменилось, игнорируем ошибку
         if "message is not modified" not in str(e):

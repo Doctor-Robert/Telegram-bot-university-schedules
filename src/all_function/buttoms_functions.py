@@ -5,7 +5,7 @@ def main_menu_buttom():
     kb = types.InlineKeyboardMarkup()
     btm1 = types.InlineKeyboardButton(text="🎓 РАСПИСАНИЕ", callback_data= "schedule")
     btm2 = types.InlineKeyboardButton(text="🔄 СМЕНИТЬ ГРУППУ", callback_data= "change_the_group")
-    btm3 = types.InlineKeyboardButton(text="❓ ПОМОЩЬ", callback_data= "help")
+    btm3 = types.InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data= "settings")
     kb.add(btm1)
     kb.add(btm2, btm3)
     return kb
@@ -69,6 +69,15 @@ def back_to_main_menu():
     kb.add(btm1)
     return kb
 
+def settings_buttom():
+    kb = types.InlineKeyboardMarkup()
+    btm1 = types.InlineKeyboardButton(text="🔔 ЕЖЕДНЕВНОЕ УВЕДОМЛЕНИЕ", callback_data= "daily_notification")
+    btm2 = types.InlineKeyboardButton(text="📅 НЕДЕЛЬНОЕ РАСПИСАНИЕ", callback_data= "weekly_schedule")
+    btm3 = types.InlineKeyboardButton(text="↩️ ГЛАВНОЕ МЕНЮ", callback_data= "main_menu")
+    kb.add(btm1)
+    kb.add(btm2)
+    kb.add(btm3)
+    return kb
 
 def check_keyboard(today_weekday):
     if bd_functions.get_next_week == 'True':

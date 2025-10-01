@@ -34,6 +34,9 @@ def init_db():
             next_week TEXT DEFAULT 'False',
             today_weekday INTEGER DEFAULT 0, 
             delete_message_id INTEGER,
+            message_chat_id INTEGER,
+            flag_daily_notification TEXT DEFAULT 'Выключен ❌',
+            flag_weekly_schedule TEXT DEFAULT 'Выключен ❌',
             FOREIGN KEY (user_id) REFERENCES users (user_id)
             )
     ''')
@@ -51,23 +54,93 @@ def add_user(user_id, nickname):
     conn = get_db_connection()
     cur = conn.cursor()
 
+    # Добавляем пользователя в таблицу users (только если нет)
     cur.execute(
         'INSERT OR IGNORE INTO users (user_id, nickname) VALUES (?, ?)',
         (user_id, nickname)
     )
 
-    cur.execute(
-        'INSERT OR IGNORE INTO info (user_id) VALUES (?)',
-        (user_id,)
-    )
+    # ПРОВЕРЯЕМ, существует ли уже запись в info перед добавлением
+    cur.execute('SELECT 1 FROM info WHERE user_id = ?', (user_id,))
+    info_exists = cur.fetchone()
     
-    cur.execute(
-        'INSERT OR IGNORE INTO schedule (user_id) VALUES (?)',
-        (user_id,)
-    )
+    if not info_exists:
+        cur.execute(
+            'INSERT INTO info (user_id) VALUES (?)',
+            (user_id,)
+        )
+        print(f"Создана новая запись в info для пользователя {user_id}")
+    else:
+        print(f"Запись в info уже существует для пользователя {user_id}")
+    
+    # ПРОВЕРЯЕМ, существует ли уже запись в schedule перед добавлением
+    cur.execute('SELECT 1 FROM schedule WHERE user_id = ?', (user_id,))
+    schedule_exists = cur.fetchone()
+    
+    if not schedule_exists:
+        cur.execute(
+            'INSERT INTO schedule (user_id) VALUES (?)',
+            (user_id,)
+        )
+        print(f"Создана новая запись в schedule для пользователя {user_id}")
+    else:
+        print(f"Запись в schedule уже существует для пользователя {user_id}")
     
     conn.commit()
     conn.close()
+
+#flag_daily_notification
+def add_flag_daily_notification(user_id, flag_daily_notification):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'UPDATE info SET flag_daily_notification = ? WHERE user_id = ?',
+        (flag_daily_notification, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+def get_flag_daily_notification(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'SELECT flag_daily_notification FROM info WHERE user_id = ?',
+        (user_id,)
+    )
+    result = cur.fetchone()
+    conn.close()
+    if result:
+        return result['flag_daily_notification']
+    return ''
+
+#flag_weekly_schedule
+def add_flag_weekly_schedule(user_id, flag_weekly_schedule):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'UPDATE info SET flag_weekly_schedule = ? WHERE user_id = ?',
+        (flag_weekly_schedule, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+def get_flag_weekly_schedule(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'SELECT flag_weekly_schedule FROM info WHERE user_id = ?',
+        (user_id,)
+    )
+    result = cur.fetchone()
+    conn.close()
+    if result:
+        return result['flag_weekly_schedule']
+    return ''
+
 
 #group_name
 def add_group_name(user_id, group_name):
@@ -127,8 +200,8 @@ def add_delete_message_id(user_id, delete_message_id):
     cur = conn.cursor()
 
     cur.execute(
-        'INSERT OR REPLACE INTO info (user_id, delete_message_id) VALUES (?, ?)',
-        (user_id, delete_message_id)
+        'UPDATE info SET delete_message_id = ? WHERE user_id = ?',  # ИЗМЕНИТЕ НА UPDATE
+        (delete_message_id, user_id)
     )
     conn.commit()
     conn.close()
@@ -146,6 +219,32 @@ def get_delete_message_id(user_id):
     if result and result['delete_message_id']:
         return int(result['delete_message_id'])
     return None
+
+#message_chat_id
+def add_message_chat_id(user_id, message_chat_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'UPDATE info SET message_chat_id = ? WHERE user_id = ?',
+        (message_chat_id, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+def get_message_chat_id(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'SELECT message_chat_id FROM info WHERE user_id = ?',
+        (user_id,)
+    )
+    result = cur.fetchone()
+    conn.close()
+    if result:
+        return result['message_chat_id']
+    return ''
 
 #user_status
 def add_user_status(user_id, user_status):
@@ -219,6 +318,18 @@ def get_all_users():
 
     cur.execute(
         'SELECT * FROM users',
+    )
+    result = cur.fetchall()
+    conn.close()
+
+    return result
+
+def get_all_info():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'SELECT * FROM info',
     )
     result = cur.fetchall()
     conn.close()
