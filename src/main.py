@@ -2,7 +2,6 @@ from all_function import parser_function, buttoms_functions, bd_functions
 from datetime import datetime, date, timedelta
 import telebot
 import threading
-import time
 
 from dotenv import load_dotenv
 import os
@@ -35,9 +34,15 @@ def start_handler(message):
                 )
 
             # Отправка пользователю
-            text = f"👋 Привет!\n\n📊 Твоя группа: {group_name}\n\nВыбери действие ниже: 👇"
+            text = f"""
+👋 <b>Привет!</b>
+
+📊 Твоя группа: {group_name}
+
+<i>Выбери действие ниже: 👇</i>
+"""
             sent_message = bot.send_message(
-                message.chat.id, text, reply_markup=buttoms_functions.main_menu_buttom()
+                message.chat.id, text, reply_markup=buttoms_functions.main_menu_buttom(), parse_mode='HTML'
             )
 
             # обновление id удаленного сообщение
@@ -47,6 +52,7 @@ def start_handler(message):
             bot.send_message(message.chat.id, text)
 
             bd_functions.add_user(user_id, nickname)
+            bd_functions.add_data_of_reg(user_id, date.today())
             bd_functions.add_message_chat_id(user_id, message.chat.id)
             bd_functions.add_user_status(user_id, "waiting_for_group_input")
 
@@ -98,7 +104,7 @@ def find_user_group(message):
 
         bd_functions.add_user_status(user_id, "None")
 
-@bot.callback_query_handler(func=lambda callback: callback.data in ['change_the_group', 'settings', 'daily_notification', 'weekly_schedule'])
+@bot.callback_query_handler(func=lambda callback: callback.data in ['change_the_group', 'settings', 'daily_notification', 'weekly_schedule', 'profile'])
 def change_group(callback):
     user_id = callback.from_user.id
 
@@ -107,6 +113,37 @@ def change_group(callback):
     except Exception as e:
         print(f"Ошибка ответа на callback: {e}")
     
+    if callback.data == 'profile':
+        group_name = bd_functions.get_group_name(user_id)
+        notification_status = bd_functions.get_flag_daily_notification(user_id)
+        registration_date = bd_functions.get_data_of_reg(user_id)
+        if notification_status == 'Включен ✅':
+            notification_status = "✅ ВКЛЮЧЕНЫ"
+            notification_icon = "🔔"
+        else:
+            notification_status = "❌ ВЫКЛЮЧЕНЫ" 
+            notification_icon = "🔕"
+        text = f"""
+👤 <b>ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ</b>
+━━━━━━━━━━━━━━━━━━━━
+
+<b>📋 ОСНОВНАЯ ИНФОРМАЦИЯ</b>
+├ <b>📌Группа:</b> <code>{group_name or 'Не установлена'}</code>
+├ {notification_icon} <b>Уведомления:</b> {notification_status}
+└ 📅 <b>Регистрация:</b> <code>{registration_date or 'Неизвестно'}</code>
+
+<b>🚀 ДОПОЛНИТЕЛЬНО</b>
+╰ 🌟 Функции в разработке
+
+━━━━━━━━━━━━━━━━━━━━
+💡 Есть идеи по улучшению? 
+📧 @admgrz
+    """
+        kb = buttoms_functions.profile_buttom()
+        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
+
+
+
     # Изменение группы
     if callback.data == 'change_the_group':
         bd_functions.add_user_status(user_id, 'waiting_for_group_input')
@@ -133,8 +170,31 @@ def change_group(callback):
         flag_weekly_schedule = bd_functions.get_flag_weekly_schedule(user_id)
 
         kb = buttoms_functions.settings_buttom()
-        text = f'⚙️ **Настройки бота**\n\n• 🔔 Ежедневные уведомления:\n{flag_daily_notification}\n• 📅 Недельное расписание:\n{flag_weekly_schedule}\n\n❓ **Помощь и поддержка**\nПо любым вопросам обращайтесь к администратору: @admgrz'
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='Markdown')
+        if "Включен" in flag_daily_notification:
+            daily_icon = "✅ Включены"
+        else:
+            daily_icon = "❌ Выключены"
+        if "Включен" in flag_weekly_schedule:
+            weekly_icon = "✅ Включено"
+        else:
+            weekly_icon = "❌ Выключено"
+
+        text = f"""
+<b>⚙️ НАСТРОЙКИ БОТА</b>
+━━━━━━━━━━━━━━━━━━━━
+
+<b>🔔 Ежедневные уведомления</b>
+{daily_icon}
+
+<b>📅 Недельное расписание</b>
+{weekly_icon}
+
+━━━━━━━━━━━━━━━━━━━━
+<b>🆘 ПОМОЩЬ И ПОДДЕРЖКА</b>
+По любым вопросам обращайтесь: 
+👉 @admgrz
+"""
+        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
 
 @bot.callback_query_handler(func=lambda callback: callback.data in ['schedule', 'forward', 'back', 'main_menu','next_week','last_week'])
 def check_schedule(callback):
@@ -174,9 +234,15 @@ def check_schedule(callback):
 
     # Главное меню
     if callback.data == 'main_menu':
-        text = f"👋 Привет!\n\n📊 Твоя группа: {group_name}\n\nВыбери действие ниже: 👇"
+        text = f"""
+👋 <b>Привет!</b>
+
+📊 Твоя группа: {group_name}
+
+<i>Выбери действие ниже: 👇</i>
+"""
         kb = buttoms_functions.main_menu_buttom()
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb)
+        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
         bd_functions.add_today_weekday_counter(user_id, 0)
         bd_functions.add_next_week(user_id, 'False')
         return
@@ -278,7 +344,11 @@ def check_schedule(callback):
             else:
                 text += "    🎉 Выходной - пар нет!\n"
 
-        kb = buttoms_functions.back_to_main_menu()
+        if bd_functions.get_next_week(user_id) == 'False':
+            kb = buttoms_functions.next_week_and_main_menu()
+        else:
+            kb = buttoms_functions.last_week_and_main_menu_buttom()
+
     try:
         bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='Markdown')
     except Exception as e:
@@ -319,5 +389,8 @@ def admin_handler(message):
         text = "👥 Поиск по группе\n\nВведите название группы для просмотра пользователей:\n\nПример: A123-45"
         bot.send_message(message.chat.id, text)
 
+greeting_thread = threading.Thread(target=parser_function.daily_greating)
+greeting_thread.daemon = True
+greeting_thread.start()
 
 bot.polling()

@@ -7,6 +7,7 @@ def init_db():
     cur.execute('''
         CREATE TABLE IF NOT EXISTS users(
             user_id INTEGER PRIMARY KEY,
+            data_of_reg TEXT,
             nickname TEXT,
             group_name TEXT DEFAULT '',
             user_admin TEXT DEFAULT 'no'
@@ -88,6 +89,39 @@ def add_user(user_id, nickname):
     
     conn.commit()
     conn.close()
+
+#data_of_registration
+def add_data_of_reg(user_id, data_of_reg):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Проверяем, есть ли уже дата регистрации
+    cur.execute('SELECT data_of_reg FROM users WHERE user_id = ?', (user_id,))
+    result = cur.fetchone()
+    
+    # Если даты регистрации еще нет - сохраняем
+    if result and not result['data_of_reg']:
+        cur.execute(
+            'UPDATE users SET data_of_reg = ? WHERE user_id = ?',
+            (data_of_reg, user_id)
+        )
+    conn.commit()
+    conn.close()
+
+def get_data_of_reg(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        'SELECT data_of_reg FROM users WHERE user_id = ?',
+        (user_id,)
+    )
+    result = cur.fetchone()
+    conn.close()
+    
+    if result and result['data_of_reg']:
+        return result['data_of_reg']
+    return None
 
 #flag_daily_notification
 def add_flag_daily_notification(user_id, flag_daily_notification):

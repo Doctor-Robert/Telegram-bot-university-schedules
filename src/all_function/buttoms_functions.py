@@ -4,10 +4,18 @@ from all_function import bd_functions
 def main_menu_buttom():
     kb = types.InlineKeyboardMarkup()
     btm1 = types.InlineKeyboardButton(text="🎓 РАСПИСАНИЕ", callback_data= "schedule")
-    btm2 = types.InlineKeyboardButton(text="🔄 СМЕНИТЬ ГРУППУ", callback_data= "change_the_group")
+    btm2 = types.InlineKeyboardButton(text="👤 МОЙ ПРОФИЛЬ", callback_data= "profile")
     btm3 = types.InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data= "settings")
     kb.add(btm1)
     kb.add(btm2, btm3)
+    return kb
+
+def profile_buttom():
+    kb = types.InlineKeyboardMarkup(row_width=3)
+    btm1 = types.InlineKeyboardButton(text="🔄 СМЕНИТЬ ГРУППУ", callback_data= "change_the_group")
+    btm2 = types.InlineKeyboardButton(text="🏠 ГЛАВНОЕ МЕНЮ", callback_data= "main_menu")
+    kb.add(btm1)
+    kb.add(btm2)
     return kb
 
 # Функция вызова кнопок вперед назад в расписании
@@ -45,6 +53,14 @@ def backward_and_next_week_buttom():
     kb.add(btm3)
     return kb
 
+def next_week_and_main_menu():
+    kb = types.InlineKeyboardMarkup()
+    btm1 = types.InlineKeyboardButton(text="📅 СЛЕД. НЕДЕЛЯ", callback_data= "next_week")
+    btm3 = types.InlineKeyboardButton(text="🏠 ГЛАВНОЕ МЕНЮ", callback_data= "main_menu")
+    kb.add(btm1)
+    kb.add(btm3)
+    return kb
+
 def forward_and_last_week_buttom():
     kb = types.InlineKeyboardMarkup()
     btm2 = types.InlineKeyboardButton(text="▶️ ВПЕРЕД", callback_data= "forward")
@@ -65,7 +81,7 @@ def last_week_and_main_menu_buttom():
 # Функция вызова кнопки вернуться в меню
 def back_to_main_menu():
     kb = types.InlineKeyboardMarkup()
-    btm1 = types.InlineKeyboardButton(text="↩️ Вернуться в меню", callback_data= "main_menu")
+    btm1 = types.InlineKeyboardButton(text="🏠 ГЛАВНОЕ МЕНЮ", callback_data= "main_menu")
     kb.add(btm1)
     return kb
 
@@ -73,7 +89,7 @@ def settings_buttom():
     kb = types.InlineKeyboardMarkup()
     btm1 = types.InlineKeyboardButton(text="🔔 ЕЖЕДНЕВНОЕ УВЕДОМЛЕНИЕ", callback_data= "daily_notification")
     btm2 = types.InlineKeyboardButton(text="📅 НЕДЕЛЬНОЕ РАСПИСАНИЕ", callback_data= "weekly_schedule")
-    btm3 = types.InlineKeyboardButton(text="↩️ ГЛАВНОЕ МЕНЮ", callback_data= "main_menu")
+    btm3 = types.InlineKeyboardButton(text="🏠 ГЛАВНОЕ МЕНЮ", callback_data= "main_menu")
     kb.add(btm1)
     kb.add(btm2)
     kb.add(btm3)
