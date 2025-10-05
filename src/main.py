@@ -1,5 +1,8 @@
+import types
+from typing import List, Optional, Union
 from all_function import parser_function, buttoms_functions, bd_functions
 from datetime import datetime, date, timedelta
+import time
 import telebot
 import threading
 
@@ -106,6 +109,7 @@ def find_user_group(message):
 
 @bot.callback_query_handler(func=lambda callback: callback.data in ['change_the_group', 'settings', 'daily_notification', 'weekly_schedule', 'profile'])
 def change_group(callback):
+
     user_id = callback.from_user.id
 
     try:
@@ -140,7 +144,7 @@ def change_group(callback):
 📧 @admgrz
     """
         kb = buttoms_functions.profile_buttom()
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
+        edit_message_text_hendler(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
 
 
 
@@ -150,7 +154,7 @@ def change_group(callback):
         bd_functions.add_group_name(user_id, '')
 
         text = '🔄 Смена группы\n\nВведите новое название группы:\n\nПример: А123-45'
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text)
+        edit_message_text_hendler(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text)
 
     # Настройки
     elif callback.data in ['settings', 'daily_notification', 'weekly_schedule']:
@@ -194,7 +198,8 @@ def change_group(callback):
 По любым вопросам обращайтесь: 
 👉 @admgrz
 """
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
+
+        edit_message_text_hendler(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
 
 @bot.callback_query_handler(func=lambda callback: callback.data in ['schedule', 'forward', 'back', 'main_menu','next_week','last_week'])
 def check_schedule(callback):
@@ -229,7 +234,7 @@ def check_schedule(callback):
         else:
             kb = buttoms_functions.back_to_main_menu()
             text = "📅 Нет расписания на эту неделю"
-            bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb)
+            edit_message_text_hendler(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb)
             return
 
     # Главное меню
@@ -242,7 +247,7 @@ def check_schedule(callback):
 <i>Выбери действие ниже: 👇</i>
 """
         kb = buttoms_functions.main_menu_buttom()
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
+        edit_message_text_hendler(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='HTML')
         bd_functions.add_today_weekday_counter(user_id, 0)
         bd_functions.add_next_week(user_id, 'False')
         return
@@ -274,7 +279,7 @@ def check_schedule(callback):
         else:
             kb = buttoms_functions.last_week_and_main_menu_buttom()
             text = "📅 Нет расписания на эту неделю"
-            bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb)
+            edit_message_text_hendler(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb)
             return
 
     elif callback.data == 'last_week':
@@ -349,12 +354,8 @@ def check_schedule(callback):
         else:
             kb = buttoms_functions.last_week_and_main_menu_buttom()
 
-    try:
-        bot.edit_message_text(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='Markdown')
-    except Exception as e:
-        # Если сообщение не изменилось, игнорируем ошибку
-        if "message is not modified" not in str(e):
-            print(f"Ошибка при редактировании сообщения: {e}")
+
+    edit_message_text_hendler(chat_id=callback.message.chat.id, message_id=callback.message.id, text=text, reply_markup=kb, parse_mode='Markdown')
 
 @bot.message_handler(commands=['admin', 'show_users', 'show_group_users'])
 def admin_handler(message):
@@ -393,4 +394,12 @@ greeting_thread = threading.Thread(target=parser_function.daily_greating)
 greeting_thread.daemon = True
 greeting_thread.start()
 
+def edit_message_text_hendler(**kwargs):
+
+    try:
+        bot.edit_message_text(**kwargs)
+    except Exception as e:
+        print(f"Ошибка ответа на edit_message_text произвожу повторную попытку: {e}")
+        time.sleep(1)
+        bot.edit_message_text(**kwargs)
 bot.polling()

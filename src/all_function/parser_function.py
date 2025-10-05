@@ -114,15 +114,35 @@ def separation_weekday_parser(weekday):
     return result
 
 
+# ДОП функции
+# Проверка на пустую неделю
+def find_no_schedule_for_week(link):
+    response = requests.get(link)
+    flag = True
+
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, "lxml")
+        schedule = (soup.find("div", id="schedule")).text
+
+        if "Нет расписания на выбранную неделю" in schedule:
+            flag = False
+
+    else:
+        flag = False
+    return flag
+
 def check_and_add_user_group(user_id, group_name, message_chat_id):
-
+    
     today_weekday = datetime.today().weekday()
+    flag = False
 
-    # Проверка, что сегодня не воскресенье и понедельник
+    # Проверка, что сегодня не воскресенье и суббота
     if today_weekday in [5, 6]:
         today_day = date.today()
         count_for_next_week = 7 - today_weekday
         day = today_day + timedelta(days=count_for_next_week)
+
+        flag = True
 
         link = f"https://kazgau.ru/obrazovanie/raspisanie-zanyatij/?filter=group&item={group_name}&date={day}"
     else:
@@ -151,6 +171,32 @@ def check_and_add_user_group(user_id, group_name, message_chat_id):
             )
 
             bd_functions.add_delete_message_id(user_id, sent_message.message_id)
+        elif flag == True:
+            today_day = date.today()
+            link = f"https://kazgau.ru/obrazovanie/raspisanie-zanyatij/?filter=group&item={group_name}&date={today_day}"
+            response = requests.get(link)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, "lxml")
+                schedule = (soup.find("div", id="schedule")).text
+
+                if not "Нет расписания на выбранную неделю" in schedule:
+                    bd_functions.add_group_name(user_id, group_name.upper())
+                    group_name = bd_functions.get_group_name(user_id)
+                    bd_functions.add_user_status(user_id, "None")
+
+                    text = f"✅ Отлично! Группа сохранена!\n\n• Группа: {group_name.upper()}\n• Статус: 🎉 Добавлена\n\nТеперь вы можете просматривать расписание!"
+                    sent_message = bot.send_message(
+                        message_chat_id,
+                        text,
+                        reply_markup=buttoms_functions.main_menu_buttom(),
+                        parse_mode="Markdown",
+                    )
+
+                    bd_functions.add_delete_message_id(user_id, sent_message.message_id)
+                else:
+                    text = f"❌ Группа {group_name} не найдена.\n\nПроверьте:\n• Правильность написания\n• Формат (например: А123-45)\n• Актуальность группы\n\nПопробуйте еще раз или воспользуйтесь командой /help:"
+                    bot.send_message(message_chat_id, text)
         else:
             text = f"❌ Группа {group_name} не найдена.\n\nПроверьте:\n• Правильность написания\n• Формат (например: А123-45)\n• Актуальность группы\n\nПопробуйте еще раз или воспользуйтесь командой /help:"
             bot.send_message(message_chat_id, text)
@@ -159,24 +205,6 @@ def check_and_add_user_group(user_id, group_name, message_chat_id):
             "🌐 Ошибка соединения\n\nСайт временно недоступен\nПовторите попытку позже"
         )
         bot.send_message(message_chat_id, text)
-
-
-# ДОП функции
-# Проверка на пустую неделю
-def find_no_schedule_for_week(link):
-    response = requests.get(link)
-    flag = True
-
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, "lxml")
-        schedule = (soup.find("div", id="schedule")).text
-
-        if "Нет расписания на выбранную неделю" in schedule:
-            flag = False
-
-    else:
-        flag = False
-    return flag
 
 
 # Проверка на воскресенье
@@ -194,7 +222,7 @@ def daily_greating():
     while True:
         current_time = datetime.now().strftime("%H:%M")
 
-        if current_time == "13:58":
+        if current_time == "15:00":
             users = bd_functions.get_all_users()
 
             for user in users:
@@ -205,7 +233,7 @@ def daily_greating():
                 if (
                     chat_id
                     and bd_functions.get_flag_daily_notification(user_id)
-                    == "Включен ✅"
+                    == "Включен ✅" and datetime.today().weekday() != 5
                 ):
                     tomorrow_day = date.today() + timedelta(1)
                     if datetime.today().weekday() == 6:
